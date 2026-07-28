@@ -1,6 +1,16 @@
 {
-  "character": "lisa",
-  "style": "casual-sitting",
+  "character": "rowan",
+  "style": "",
   "customized": false,
-  "video": { "resolution": { "width": 1920, "height": 1080 }, "bitrate": 2000000, "codec": "h264" }
+  "video": {
+    "resolution": {
+      "width": 1920,
+      "height": 1080
+    },
+    "bitrate": 2000000,
+    "codec": "h264",
+    "background": {
+      "imageUrl": "https://i.postimg.cc/J09MW0KK/background.jpg"
+    }
+  }
 }

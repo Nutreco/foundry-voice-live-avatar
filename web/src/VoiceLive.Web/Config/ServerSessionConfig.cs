@@ -43,7 +43,8 @@ public sealed record ServerTurnTakingConfig(string ActiveMode, IReadOnlyDictiona
 }
 
 public sealed record ServerVideoResolutionConfig(int Width, int Height);
-public sealed record ServerVideoConfig(ServerVideoResolutionConfig Resolution, int? Bitrate = null, string? Codec = null);
+public sealed record ServerVideoBackgroundConfig(string Color, string ImageUrl);
+public sealed record ServerVideoConfig(ServerVideoResolutionConfig Resolution, int? Bitrate = null, string? Codec = null, ServerVideoBackgroundConfig? Background = null);
 public sealed record ServerAvatarConfig(string Character, string Style, bool Customized, ServerVideoConfig? Video = null);
 public sealed record ServerAgentConfig(string AgentName, string AgentProjectName, IReadOnlyList<string> SafeQuestions);
 
@@ -96,7 +97,7 @@ public static partial class WebConfigLoader
             errors.Add($"turntaking.json: activeMode: '{turn.ActiveMode}' is not present in modes");
 
         RequireServer(avatar.Character, "avatar.json", "character", errors);
-        RequireServer(avatar.Style, "avatar.json", "style", errors);
+        // RequireServer(avatar.Style, "avatar.json", "style", errors);
 
         RequireServer(agent.AgentName, "agent.json", "agentName", errors);
         RequireServer(agent.AgentProjectName, "agent.json", "agentProjectName", errors);

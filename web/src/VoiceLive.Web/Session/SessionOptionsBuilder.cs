@@ -134,7 +134,14 @@ public static class SessionOptionsBuilder
             {
                 Bitrate = config.Video.Bitrate,
                 Codec = config.Video.Codec,
-                Resolution = new VideoResolution(config.Video.Resolution.Width, config.Video.Resolution.Height)
+                Resolution = new VideoResolution(config.Video.Resolution.Width, config.Video.Resolution.Height),
+                Background = config.Video.Background is not null
+                    ? new VideoBackground
+                    {
+                        Color = config.Video.Background.Color,
+                        ImageUrl = config.Video.Background.ImageUrl
+                    }
+                    : null
             };
         }
         return avatar;

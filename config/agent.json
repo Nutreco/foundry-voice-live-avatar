@@ -1,11 +1,8 @@
 {
-  "agentName": "company-direction-avatar",
-  "agentProjectName": "proj-default",
+  "agentName": "my-demo-agent",
+  "agentProjectName": "prj-d-ai-itexcellence",
   "agentVersion": null,
   "conversationResumePolicy": "resume",
   "groundingStrategy": "pack",
-  "safeQuestions": [
-    "Let's refocus - what is our single most important priority this year?",
-    "What does this direction mean for our customers?"
-  ]
+  "safeQuestions": []
 }
