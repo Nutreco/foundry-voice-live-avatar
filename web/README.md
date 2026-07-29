@@ -30,7 +30,7 @@ From the repository root:
 dotnet run --project web/src/VoiceLive.Web
 ```
 
-Open `http://localhost:5280/?view=operator`, sign in with the development credentials from `appsettings.Development.json` (`operator` / `rehearsal`), grant microphone permission, then hold **Hold to talk** or click a safe-question button.
+Open `http://localhost:5280/` for the default fullscreen avatar landing screen, sign in with the development credentials from `appsettings.Development.json` (`operator` / `rehearsal`), grant microphone permission, then hold **Hold to talk**. The ⚙ gear (top-right) opens the operator/troubleshoot console (`?view=operator`) with status lines, transcript, and safe-question buttons.
 
 For an anonymous health check:
 
@@ -46,7 +46,7 @@ By default the web app runs in **model mode** using `VoiceLive:Mode=model` and t
 
 To connect to a Voice Live agent instead, create the agent in the Azure AI Foundry portal, set its name and project in `config/agent.json`, and set `VoiceLive:Mode=agent` or `VOICELIVE_MODE=agent` before running/deploying. In agent mode the agent owns the model, instructions, and hosted tools; voice, avatar, audio, and turn-taking still come from app config.
 
-Tool/function/MCP events emitted by the agent are logged and shown under "Tool activity" in the operator view. Note: purely hosted tools (e.g. web search, Azure AI Search) run entirely server-side and may not emit a discrete client event.
+Tool/function/MCP events emitted by the agent are logged and shown under "Tool activity" in the operator view **when the session runs in agent mode** (the panel is hidden in model mode, where no tool calls occur). Note: purely hosted tools (e.g. web search, Azure AI Search) run entirely server-side and may not emit a discrete client event.
 
 ## How to verify in a browser
 
@@ -56,7 +56,7 @@ Run the app from the repository root:
 ConfigDir=/home/jbergfeld/vcs/foundry-voice-live-avatar/config ASPNETCORE_URLS=http://127.0.0.1:5210 dotnet run --no-launch-profile --project web/src/VoiceLive.Web
 ```
 
-Open `http://127.0.0.1:5210/?view=operator`, sign in, grant microphone permission, then hold **Hold to talk** or click a safe-question button. Expect avatar video, spoken answer audio, and live/final transcripts. Open `http://127.0.0.1:5210/?view=display` for a fullscreen avatar-only view.
+Open `http://127.0.0.1:5210/` (fullscreen landing) or `http://127.0.0.1:5210/?view=operator` (operator console), sign in, grant microphone permission, then hold **Hold to talk**. Expect avatar video, spoken answer audio, and live/final transcripts. Open `http://127.0.0.1:5210/?view=display` for the passive fullscreen avatar-only view (no microphone).
 
 MVP limitation: every browser tab opens its own `/ws/session`, which creates its own server-side Voice Live session. The operator tab is the complete self-contained experience; a shared operator/display room with one conversation across two screens is future work.
 

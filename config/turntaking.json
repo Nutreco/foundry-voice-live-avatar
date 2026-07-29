@@ -12,10 +12,9 @@
         "endOfUtteranceDetection": { "model": "semantic_detection_v1", "thresholdLevel": "medium", "timeoutMs": 1000 }
       }
     },
-    "gated": { "manualTurn": true, "interruptResponse": false },
+    "gated": { "manualTurn": true },
     "hybrid": {
       "manualTurn": false,
-      "gateGatesBargeIn": true,
       "turnDetection": {
         "type": "azure_semantic_vad",
         "threshold": 0.5,

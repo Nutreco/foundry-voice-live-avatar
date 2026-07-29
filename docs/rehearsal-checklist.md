@@ -22,6 +22,7 @@
   dotnet run --project web/src/VoiceLive.Web
   ```
 - [ ] Check health: `curl -s http://localhost:5280/api/health`.
+- [ ] Open the default landing view: `http://localhost:5280/` or `<deployed-url>/`. Use the ⚙ gear to reach the operator view.
 - [ ] Open operator view: `http://localhost:5280/?view=operator` or `<deployed-url>/?view=operator`.
 - [ ] Open display view if needed: `http://localhost:5280/?view=display` or `<deployed-url>/?view=display`.
 - [ ] Sign in with the configured operator credentials.

@@ -1,19 +1,8 @@
 {
   "region": "swedencentral",
   "model": "gpt-realtime",
-  "voice": {
-    "type": "azure-realtime-native",
-    "name": "en-US-Andrew:DragonHDOmniLatestNeural"
-  },
-  "inputAudioSamplingRate": 24000,
-  "inputAudioNoiseReduction": {
-    "type": "azure_deep_noise_suppression"
-  },
-  "inputAudioEchoCancellation": {
-    "type": "server_echo_cancellation"
-  },
-  "inputAudioTranscription": {
-    "model": "azure-speech",
-    "language": "en"
-  }
+  "voice": { "type": "azure-realtime-native", "name": "en-US-AndrewNeural" },
+  "inputAudioNoiseReduction": { "type": "azure_deep_noise_suppression" },
+  "inputAudioEchoCancellation": { "type": "server_echo_cancellation" },
+  "inputAudioTranscription": { "model": "azure-speech", "language": "en" }
 }

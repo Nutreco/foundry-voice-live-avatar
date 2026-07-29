@@ -5,7 +5,7 @@ class Pcm16Worklet extends AudioWorkletProcessor {
     this.sourceRate = sampleRate;
     this.pending = [];
     this.pendingLength = 0;
-    this.readOffset = 0;
+    this.positionNumerator = 0;
   }
 
   process(inputs) {
@@ -19,16 +19,17 @@ class Pcm16Worklet extends AudioWorkletProcessor {
     }
 
     this.enqueue(input);
-    const ratio = this.sourceRate / this.targetRate;
-    const outputSamples = Math.floor((this.pendingLength - this.readOffset) / ratio);
+    const availableNumerator =
+      this.pendingLength * this.targetRate - this.positionNumerator;
+    const outputSamples = Math.ceil(availableNumerator / this.sourceRate);
     if (outputSamples <= 0) return true;
 
     const pcm = new Int16Array(outputSamples);
     for (let i = 0; i < outputSamples; i++) {
-      const sourceIndex = this.readOffset + Math.floor(i * ratio);
+      const sourceIndex = Math.floor(this.positionNumerator / this.targetRate);
       pcm[i] = this.sampleToInt16(this.getSample(sourceIndex));
+      this.positionNumerator += this.sourceRate;
     }
-    this.readOffset += Math.floor(outputSamples * ratio);
     this.compact();
     this.port.postMessage(pcm.buffer, [pcm.buffer]);
     return true;
@@ -51,8 +52,11 @@ class Pcm16Worklet extends AudioWorkletProcessor {
   }
 
   compact() {
-    while (this.pending.length > 0 && this.readOffset >= this.pending[0].length) {
-      this.readOffset -= this.pending[0].length;
+    while (
+      this.pending.length > 0 &&
+      this.positionNumerator >= this.pending[0].length * this.targetRate
+    ) {
+      this.positionNumerator -= this.pending[0].length * this.targetRate;
       this.pendingLength -= this.pending[0].length;
       this.pending.shift();
     }

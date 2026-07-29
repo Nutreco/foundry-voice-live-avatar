@@ -37,4 +37,4 @@ Run the web app from the repository root:
 dotnet run --project web/src/VoiceLive.Web
 ```
 
-Open `http://localhost:5280/?view=operator` and sign in with the development credentials `operator` / `rehearsal`. The frontend is built automatically by the MSBuild `BuildFrontend` target.
+Open `http://localhost:5280/` for the fullscreen avatar landing screen (talk to the avatar with **Hold to talk**; the ⚙ gear opens the operator/troubleshoot view). Or open `http://localhost:5280/?view=operator` directly for the operator console. Sign in with the development credentials `operator` / `rehearsal`. The frontend is built automatically by the MSBuild `BuildFrontend` target.

@@ -31,4 +31,29 @@ public class AuthTests : IClassFixture<TestAppFactory>
         var resp = await client.GetAsync("/api/config");
         Assert.Equal(HttpStatusCode.Unauthorized, resp.StatusCode);
     }
+
+    [Fact]
+    public async Task Login_rejects_sixth_attempt_from_same_ip_with_429()
+    {
+        using var factory = new TestAppFactory();
+        var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+
+        for (var attempt = 1; attempt <= 5; attempt++)
+        {
+            using var response = await client.PostAsync("/login", InvalidLogin());
+            Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        }
+
+        using var limited = await client.PostAsync("/login", InvalidLogin());
+        Assert.Equal(HttpStatusCode.TooManyRequests, limited.StatusCode);
+    }
+
+    private static FormUrlEncodedContent InvalidLogin() => new(
+    [
+        new KeyValuePair<string, string>("username", "operator"),
+        new KeyValuePair<string, string>("password", "incorrect")
+    ]);
 }

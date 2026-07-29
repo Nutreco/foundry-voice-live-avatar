@@ -91,8 +91,9 @@ dotnet run --project web/src/VoiceLive.Web
 
 Open:
 
-- Operator view: `http://localhost:5280/?view=operator`
-- Display view: `http://localhost:5280/?view=display`
+- Landing view (default): `http://localhost:5280/`
+- Operator/troubleshoot view: `http://localhost:5280/?view=operator`
+- Display view (passive): `http://localhost:5280/?view=display`
 
 Sign in with the development credentials `operator` / `rehearsal`, grant microphone permission, then hold **Hold to talk** or click a safe question.
 

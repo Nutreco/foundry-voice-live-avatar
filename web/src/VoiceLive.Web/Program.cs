@@ -1,4 +1,5 @@
 using System.Net.WebSockets;
+using System.Threading.RateLimiting;
 using Azure.Monitor.OpenTelemetry.AspNetCore;
 using Microsoft.Extensions.Options;
 using OpenTelemetry.Metrics;
@@ -27,6 +28,20 @@ builder.Services.AddAuthentication(Microsoft.AspNetCore.Authentication.Cookies.C
         o.SlidingExpiration = true;
     });
 builder.Services.AddAuthorization();
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy("login", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 5,
+                Window = TimeSpan.FromMinutes(1),
+                QueueLimit = 0,
+                AutoReplenishment = true
+            }));
+});
 builder.Services.AddSingleton<VoiceLive.Web.Config.ConfigState>(sp =>
 {
     var o = sp.GetRequiredService<IOptions<VoiceLive.Web.Config.VoiceLiveOptions>>().Value;
@@ -71,6 +86,7 @@ app.Use(async (ctx, next) =>
     await next();
 });
 
+app.UseRateLimiter();
 app.UseWebSockets(new WebSocketOptions { KeepAliveInterval = TimeSpan.FromSeconds(30) });
 
 app.UseAuthentication();

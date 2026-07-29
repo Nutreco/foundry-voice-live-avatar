@@ -30,7 +30,7 @@ public static class LoginEndpoints
                 return Results.Redirect("/");
             }
             return Results.Redirect("/login?error=1");
-        }).AllowAnonymous();
+        }).AllowAnonymous().RequireRateLimiting("login");
 
         app.MapPost("/logout", async (HttpContext ctx) =>
         {

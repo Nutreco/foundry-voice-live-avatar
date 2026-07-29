@@ -5,6 +5,8 @@ namespace VoiceLive.Web.Session;
 
 public static class SessionOptionsBuilder
 {
+    public const int BrowserPcmSamplingRate = 24_000;
+
     public static VoiceLiveSessionOptions Build(ServerSessionConfig config, string instructions)
     {
         var options = BuildCommon(config);
@@ -24,7 +26,7 @@ public static class SessionOptionsBuilder
             TurnDetection = BuildTurnDetection(config.TurnTaking),
             InputAudioFormat = InputAudioFormat.Pcm16,
             OutputAudioFormat = OutputAudioFormat.Pcm16,
-            InputAudioSamplingRate = config.InputAudioSamplingRate,
+            InputAudioSamplingRate = BrowserPcmSamplingRate,
             Avatar = BuildAvatar(config.Avatar),
         };
 
@@ -127,7 +129,9 @@ public static class SessionOptionsBuilder
 
     private static AvatarConfiguration BuildAvatar(ServerAvatarConfig config)
     {
-        var avatar = new AvatarConfiguration(config.Character, config.Customized) { Style = config.Style };
+        var avatar = new AvatarConfiguration(config.Character, customized: false);
+        if (!config.Preview)
+            avatar.Style = config.Style;
         if (config.Video is not null)
         {
             avatar.Video = new VideoParams
@@ -143,6 +147,8 @@ public static class SessionOptionsBuilder
                     }
                     : null
             };
+            if (config.Video.Background is not null)
+                avatar.Video.Background = new VideoBackground { ImageUrl = config.Video.Background.ImageUrl };
         }
         return avatar;
     }

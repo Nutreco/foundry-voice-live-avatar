@@ -14,6 +14,8 @@ The `/config` directory contains the web app's JSON config files. All values bel
 
 `endpoint`, `apiVersion`, and `mode` are no longer in `config/session.json`. `session.model` is required only in **model** mode; in **agent** mode the Voice Live agent owns the model. Agent name and project live in `config/agent.json`.
 
+Browser audio transport is fixed at 24 kHz mono signed PCM16. The browser audio worklet resamples from the actual browser audio context rate before sending microphone audio.
+
 ## `session.json`
 
 | Field | Type | Required | Allowed values / default | Description |
@@ -23,7 +25,6 @@ The `/config` directory contains the web app's JSON config files. All values bel
 | `voice` | object | Required | Contains `type`, `name` | Voice selection. |
 | `voice.type` | string | Required | `azure-realtime-native`, `azure-standard`, `azure-custom`, `openai`; default: `azure-realtime-native` | Voice provider/type. |
 | `voice.name` | string | Required | Default: `en-US-AndrewNeural` | Voice name. |
-| `inputAudioSamplingRate` | number | Required | Default: `24000` | Input audio sampling rate in hertz. |
 | `inputAudioNoiseReduction` | object | Required | Contains `type` | Input audio noise reduction settings. |
 | `inputAudioNoiseReduction.type` | string | Required | Default: `azure_deep_noise_suppression` | Noise reduction mode. |
 | `inputAudioEchoCancellation` | object | Required | Contains `type` | Input audio echo cancellation settings. |
@@ -50,12 +51,10 @@ The `/config` directory contains the web app's JSON config files. All values bel
 | `modes.open-mic.turnDetection.endOfUtteranceDetection.model` | string | Required | Default: `semantic_detection_v1` | End-of-utterance model. |
 | `modes.open-mic.turnDetection.endOfUtteranceDetection.thresholdLevel` | string | Required | Default: `medium` | End-of-utterance threshold level. |
 | `modes.open-mic.turnDetection.endOfUtteranceDetection.timeoutMs` | number | Required | Default: `1000` | End-of-utterance timeout in milliseconds. |
-| `modes.gated` | object | Required | Contains `manualTurn`, `interruptResponse` | Gated mode definition. |
+| `modes.gated` | object | Required | Contains `manualTurn` | Gated mode definition. |
 | `modes.gated.manualTurn` | boolean | Required | Default: `true` | Whether turns are manually committed. |
-| `modes.gated.interruptResponse` | boolean | Required | Default: `false` | Whether input interrupts the avatar response. |
-| `modes.hybrid` | object | Required | Contains `manualTurn`, `gateGatesBargeIn`, `turnDetection` | Hybrid mode definition. |
+| `modes.hybrid` | object | Required | Contains `manualTurn`, `turnDetection` | Hybrid mode definition. |
 | `modes.hybrid.manualTurn` | boolean | Required | Default: `false` | Whether turns are manually committed. |
-| `modes.hybrid.gateGatesBargeIn` | boolean | Required | Default: `true` | Whether the gate controls barge-in behavior. |
 | `modes.hybrid.turnDetection` | object | Required | Contains semantic VAD settings | Automatic turn detection settings for hybrid mode. |
 | `modes.hybrid.turnDetection.type` | string | Required | Default: `azure_semantic_vad` | VAD implementation. |
 | `modes.hybrid.turnDetection.threshold` | number | Required | Default: `0.5` | VAD confidence threshold. |
@@ -83,14 +82,16 @@ The `/config` directory contains the web app's JSON config files. All values bel
 | Field | Type | Required | Allowed values / default | Description |
 | --- | --- | --- | --- | --- |
 | `character` | string | Required | Default: `lisa` | Avatar character. |
-| `style` | string | Required | Default: `casual-sitting` | Avatar style. |
-| `customized` | boolean | Required | Default: `false` | Whether a customized avatar is used. |
-| `video` | object | Required | Contains `resolution`, `bitrate`, `codec` | Video output settings. |
+| `preview` | boolean | Required | Default: `false`; local-only flag | Local preview-avatar flag. Preview avatars omit style; this field is not sent to Voice Live. Must be a boolean; missing, `null`, or non-boolean values are invalid. |
+| `style` | string | Required when `preview` is `false`; forbidden when `preview` is `true` | Default: `casual-sitting` | Avatar style. Must be omitted entirely when `preview` is `true`; any `style` property present alongside `preview: true` is rejected. |
+| `video` | object | Required | Contains `resolution`, `bitrate`, `codec`, `background` | Video output settings. |
 | `video.resolution` | object | Required | Contains `width`, `height` | Video resolution. |
 | `video.resolution.width` | number | Required | Default: `1920` | Video width in pixels. |
 | `video.resolution.height` | number | Required | Default: `1080` | Video height in pixels. |
 | `video.bitrate` | number | Required | Default: `2000000` | Video bitrate in bits per second. |
 | `video.codec` | string | Required | Default: `h264` | Video codec. |
+| `video.background` | object | Optional | | Background settings for the avatar video. Must be an object if present; null or any non-object value is invalid. |
+| `video.background.imageUrl` | string | Required within `video.background` | Absolute HTTPS URL | Background image URL. Must be a string and an absolute HTTPS URL. Non-string values (numbers, booleans, arrays, objects) are invalid. |
 
 ## Validation rules
 
@@ -105,3 +106,8 @@ The `/config` directory contains the web app's JSON config files. All values bel
 - `agent.json.groundingStrategy` must be one of `pack`, `rag`, or `both`.
 - `agent.json.conversationResumePolicy` must be one of `resume` or `fresh`.
 - Unknown values for `voice.type`, `turntaking.activeMode`, `agent.groundingStrategy`, or `agent.conversationResumePolicy` fail fast at startup.
+- `avatar.json.preview` is a local preview-avatar flag (required, boolean); preview avatars omit style and this field is not sent to Voice Live; missing, `null`, or non-boolean values are invalid.
+- `avatar.json.style` is required when `preview` is `false` and must not be present when `preview` is `true`; the presence of any `style` property alongside `preview: true` is rejected.
+- `avatar.json.customized` is not supported; the app always creates non-customized avatars regardless of config.
+- `avatar.json.video.background` must be an object if present; null or any non-object value is invalid.
+- `avatar.json.video.background.imageUrl` is required within `video.background`, must be a string (numbers, booleans, arrays, and objects are invalid), and must be an absolute HTTPS URL.

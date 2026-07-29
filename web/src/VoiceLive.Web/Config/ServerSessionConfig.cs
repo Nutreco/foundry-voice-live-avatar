@@ -13,7 +13,6 @@ public sealed record ServerSessionConfig(
     string ApiVersion,
     string Model,
     ServerVoiceConfig Voice,
-    int InputAudioSamplingRate,
     ServerNoiseReductionConfig? InputAudioNoiseReduction,
     ServerEchoCancellationConfig? InputAudioEchoCancellation,
     ServerTranscriptionConfig? InputAudioTranscription,
@@ -33,8 +32,6 @@ public sealed record ServerTurnDetectionConfig(
 
 public sealed record ServerTurnModeConfig(
     bool ManualTurn = false,
-    bool? GateGatesBargeIn = null,
-    bool? InterruptResponse = null,
     ServerTurnDetectionConfig? TurnDetection = null);
 
 public sealed record ServerTurnTakingConfig(string ActiveMode, IReadOnlyDictionary<string, ServerTurnModeConfig> Modes)
@@ -43,9 +40,17 @@ public sealed record ServerTurnTakingConfig(string ActiveMode, IReadOnlyDictiona
 }
 
 public sealed record ServerVideoResolutionConfig(int Width, int Height);
-public sealed record ServerVideoBackgroundConfig(string Color, string ImageUrl);
-public sealed record ServerVideoConfig(ServerVideoResolutionConfig Resolution, int? Bitrate = null, string? Codec = null, ServerVideoBackgroundConfig? Background = null);
-public sealed record ServerAvatarConfig(string Character, string Style, bool Customized, ServerVideoConfig? Video = null);
+public sealed record ServerVideoBackgroundConfig(string ImageUrl);
+public sealed record ServerVideoConfig(
+    ServerVideoResolutionConfig Resolution,
+    int? Bitrate = null,
+    string? Codec = null,
+    ServerVideoBackgroundConfig? Background = null);
+public sealed record ServerAvatarConfig(
+    string Character,
+    string? Style,
+    bool Preview,
+    ServerVideoConfig? Video = null);
 public sealed record ServerAgentConfig(string AgentName, string AgentProjectName, IReadOnlyList<string> SafeQuestions);
 
 public static partial class WebConfigLoader
@@ -87,9 +92,6 @@ public static partial class WebConfigLoader
                 errors.Add($"session.json: voice.type: '{session.Voice.Type}' is not one of {string.Join(", ", VoiceTypes)}");
         }
 
-        if (session.InputAudioSamplingRate <= 0)
-            errors.Add("session.json: inputAudioSamplingRate: must be greater than zero");
-
         RequireServer(turn.ActiveMode, "turntaking.json", "activeMode", errors);
         if (turn.Modes is null || turn.Modes.Count == 0)
             errors.Add("turntaking.json: modes: is required");
@@ -97,11 +99,16 @@ public static partial class WebConfigLoader
             errors.Add($"turntaking.json: activeMode: '{turn.ActiveMode}' is not present in modes");
 
         RequireServer(avatar.Character, "avatar.json", "character", errors);
-        // RequireServer(avatar.Style, "avatar.json", "style", errors);
+        if (avatar.Preview == false)
+            RequireServer(avatar.Style, "avatar.json", "style", errors, "is required when preview is false");
 
         RequireServer(agent.AgentName, "agent.json", "agentName", errors);
         RequireServer(agent.AgentProjectName, "agent.json", "agentProjectName", errors);
         if (agent.SafeQuestions is null) errors.Add("agent.json: safeQuestions: is required");
+
+        ValidateSessionSettings(session, errors);
+        ValidateTurnTakingSettings(turn, errors);
+        ValidateAvatarSettings(avatar, errors);
 
         if (errors.Count > 0)
             return (null, null);
@@ -113,12 +120,19 @@ public static partial class WebConfigLoader
             env.ApiVersion,
             model,
             new ServerVoiceConfig(session.Voice!.Type!, session.Voice.Name!, session.Voice.Temperature, session.Voice.Rate, session.Voice.Style),
-            session.InputAudioSamplingRate,
             session.InputAudioNoiseReduction is null ? null : new ServerNoiseReductionConfig(session.InputAudioNoiseReduction.Type!),
             session.InputAudioEchoCancellation is null ? null : new ServerEchoCancellationConfig(session.InputAudioEchoCancellation.Type!),
             session.InputAudioTranscription is null ? null : new ServerTranscriptionConfig(session.InputAudioTranscription.Model!, session.InputAudioTranscription.Language),
             new ServerTurnTakingConfig(turn.ActiveMode!, turn.Modes!),
-            new ServerAvatarConfig(avatar.Character!, avatar.Style!, avatar.Customized, avatar.Video),
+            new ServerAvatarConfig(
+                avatar.Character!,
+                avatar.Style,
+                avatar.Preview ?? false,
+                avatar.Video is null ? null : new ServerVideoConfig(
+                    avatar.Video.Resolution!,
+                    avatar.Video.Bitrate,
+                    avatar.Video.Codec,
+                    BuildBackground(avatar.Video.Background))),
             new ServerAgentConfig(agent.AgentName!, agent.AgentProjectName!, agent.SafeQuestions!),
             mode);
 
@@ -179,6 +193,67 @@ public static partial class WebConfigLoader
                 return (null, null);
             }
 
+            var root = doc.RootElement;
+            var errorsBeforeRawChecks = errors.Count;
+
+            // Reject removed 'customized' property (case-insensitive)
+            foreach (var prop in root.EnumerateObject())
+            {
+                if (prop.Name.Equals("customized", StringComparison.OrdinalIgnoreCase))
+                {
+                    errors.Add("avatar.json: customized: is not supported");
+                    break;
+                }
+            }
+
+            // Check 'preview' presence and 'style' exclusivity
+            bool hasPreview = false;
+            bool previewIsTrue = false;
+            foreach (var prop in root.EnumerateObject())
+            {
+                if (prop.Name.Equals("preview", StringComparison.OrdinalIgnoreCase))
+                {
+                    hasPreview = true;
+                    var kind = prop.Value.ValueKind;
+                    if (kind == JsonValueKind.True)
+                        previewIsTrue = true;
+                    else if (kind != JsonValueKind.False)
+                        errors.Add("avatar.json: preview: must be a boolean");
+                    break;
+                }
+            }
+
+            if (!hasPreview)
+                errors.Add("avatar.json: preview: is required");
+
+            if (hasPreview && previewIsTrue)
+            {
+                bool hasStyle = root.EnumerateObject()
+                    .Any(p => p.Name.Equals("style", StringComparison.OrdinalIgnoreCase));
+                if (hasStyle)
+                    errors.Add("avatar.json: style: must not be set when preview is true");
+            }
+
+            // Reject non-object video.background
+            foreach (var prop in root.EnumerateObject())
+            {
+                if (!prop.Name.Equals("video", StringComparison.OrdinalIgnoreCase) ||
+                    prop.Value.ValueKind != JsonValueKind.Object)
+                    continue;
+                foreach (var videoProp in prop.Value.EnumerateObject())
+                {
+                    if (!videoProp.Name.Equals("background", StringComparison.OrdinalIgnoreCase))
+                        continue;
+                    if (videoProp.Value.ValueKind != JsonValueKind.Object)
+                        errors.Add("avatar.json: video.background: must be an object");
+                    break;
+                }
+                break;
+            }
+
+            if (errors.Count > errorsBeforeRawChecks)
+                return (null, null);
+
             var avatar = doc.RootElement.Deserialize<ServerAvatarFile>(ServerOpts)
                 ?? throw new JsonException("null document");
             return (avatar, doc.RootElement.Clone());
@@ -195,11 +270,201 @@ public static partial class WebConfigLoader
         if (string.IsNullOrWhiteSpace(value)) errors.Add($"{file}: {field}: {message}");
     }
 
+    private static void ValidateSessionSettings(ServerSessionFile session, List<string> errors)
+    {
+        if (session.InputAudioTranscription is not null)
+            RequireServer(
+                session.InputAudioTranscription.Model,
+                "session.json",
+                "inputAudioTranscription.model",
+                errors);
+
+        if (session.InputAudioNoiseReduction is not null)
+            ValidateSupportedValue(
+                session.InputAudioNoiseReduction.Type,
+                "session.json",
+                "inputAudioNoiseReduction.type",
+                NoiseReductionTypes,
+                errors);
+
+        if (session.InputAudioEchoCancellation is not null)
+            ValidateSupportedValue(
+                session.InputAudioEchoCancellation.Type,
+                "session.json",
+                "inputAudioEchoCancellation.type",
+                EchoCancellationTypes,
+                errors);
+    }
+
+    private static void ValidateTurnTakingSettings(ServerTurnTakingFile turn, List<string> errors)
+    {
+        if (turn.Modes is null)
+            return;
+
+        foreach (var (modeName, mode) in turn.Modes)
+        {
+            var modeField = $"modes.{modeName}";
+            if (mode is null)
+            {
+                errors.Add($"turntaking.json: {modeField}: is required");
+                continue;
+            }
+
+            if (mode.ManualTurn && mode.TurnDetection is not null)
+                errors.Add($"turntaking.json: {modeField}: manualTurn cannot be combined with turnDetection");
+            else if (!mode.ManualTurn && mode.TurnDetection is null)
+                errors.Add($"turntaking.json: {modeField}.turnDetection: is required when manualTurn is false");
+
+            if (mode.TurnDetection is not null)
+                ValidateTurnDetection(mode.TurnDetection, $"{modeField}.turnDetection", errors);
+        }
+    }
+
+    private static void ValidateTurnDetection(
+        ServerTurnDetectionConfig turnDetection,
+        string field,
+        List<string> errors)
+    {
+        ValidateSupportedValue(
+            turnDetection.Type,
+            "turntaking.json",
+            $"{field}.type",
+            TurnDetectionTypes,
+            errors);
+
+        if (turnDetection.Threshold is < 0 or > 1)
+            errors.Add($"turntaking.json: {field}.threshold: must be between 0 and 1");
+        if (turnDetection.PrefixPaddingMs is < 0)
+            errors.Add($"turntaking.json: {field}.prefixPaddingMs: must be non-negative");
+        if (turnDetection.SilenceDurationMs is < 0)
+            errors.Add($"turntaking.json: {field}.silenceDurationMs: must be non-negative");
+
+        if (turnDetection.EndOfUtteranceDetection is not null)
+            ValidateEouDetection(
+                turnDetection.EndOfUtteranceDetection,
+                $"{field}.endOfUtteranceDetection",
+                errors);
+    }
+
+    private static void ValidateEouDetection(
+        ServerEouDetectionConfig eou,
+        string field,
+        List<string> errors)
+    {
+        ValidateSupportedValue(eou.Model, "turntaking.json", $"{field}.model", EouModels, errors);
+
+        ValidateSupportedValue(
+            eou.ThresholdLevel,
+            "turntaking.json",
+            $"{field}.thresholdLevel",
+            EouThresholdLevels,
+            errors);
+
+        if (eou.TimeoutMs is null)
+            errors.Add($"turntaking.json: {field}.timeoutMs: is required");
+        else if (eou.TimeoutMs <= 0)
+            errors.Add($"turntaking.json: {field}.timeoutMs: must be positive");
+    }
+
+    private static void ValidateAvatarSettings(ServerAvatarFile avatar, List<string> errors)
+    {
+        if (avatar.Video is null)
+            return;
+
+        if (avatar.Video.Resolution is null)
+        {
+            errors.Add("avatar.json: video.resolution: is required");
+        }
+        else
+        {
+            if (avatar.Video.Resolution.Width <= 0)
+                errors.Add("avatar.json: video.resolution.width: must be positive");
+            if (avatar.Video.Resolution.Height <= 0)
+                errors.Add("avatar.json: video.resolution.height: must be positive");
+        }
+
+        if (avatar.Video.Bitrate is null)
+            errors.Add("avatar.json: video.bitrate: is required");
+        else if (avatar.Video.Bitrate <= 0)
+            errors.Add("avatar.json: video.bitrate: must be positive");
+
+        if (avatar.Video.Codec is not null)
+            ValidateSupportedValue(
+                avatar.Video.Codec,
+                "avatar.json",
+                "video.codec",
+                VideoCodecs,
+                errors);
+
+        if (avatar.Video.Background is { } bgElement && bgElement.ValueKind == JsonValueKind.Object)
+        {
+            JsonElement? imageUrlElement = null;
+            foreach (var prop in bgElement.EnumerateObject())
+            {
+                if (prop.Name.Equals("imageUrl", StringComparison.OrdinalIgnoreCase))
+                {
+                    imageUrlElement = prop.Value;
+                    break;
+                }
+            }
+
+            if (imageUrlElement is null)
+            {
+                errors.Add("avatar.json: video.background.imageUrl: is required");
+            }
+            else if (imageUrlElement.Value.ValueKind != JsonValueKind.String)
+            {
+                errors.Add("avatar.json: video.background.imageUrl: must be a string");
+            }
+            else
+            {
+                var imageUrl = imageUrlElement.Value.GetString();
+                if (string.IsNullOrWhiteSpace(imageUrl))
+                    errors.Add("avatar.json: video.background.imageUrl: is required");
+                else if (!Uri.TryCreate(imageUrl, UriKind.Absolute, out var uri) ||
+                         uri.Scheme != Uri.UriSchemeHttps)
+                    errors.Add("avatar.json: video.background.imageUrl: must be an absolute HTTPS URL");
+            }
+        }
+    }
+
+    private static ServerVideoBackgroundConfig? BuildBackground(JsonElement? background)
+    {
+        if (background is null || background.Value.ValueKind != JsonValueKind.Object)
+            return null;
+        foreach (var prop in background.Value.EnumerateObject())
+        {
+            if (prop.Name.Equals("imageUrl", StringComparison.OrdinalIgnoreCase) &&
+                prop.Value.ValueKind == JsonValueKind.String)
+            {
+                var imageUrl = prop.Value.GetString();
+                return imageUrl is not null ? new ServerVideoBackgroundConfig(imageUrl) : null;
+            }
+        }
+        return null;
+    }
+
+    private static void ValidateSupportedValue(
+        string? value,
+        string file,
+        string field,
+        IReadOnlyCollection<string> supported,
+        List<string> errors)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            errors.Add($"{file}: {field}: is required");
+        }
+        else if (!supported.Contains(value))
+        {
+            errors.Add($"{file}: {field}: '{value}' is not supported; supported: {string.Join(", ", supported)}");
+        }
+    }
+
     private sealed record ServerSessionFile(
         string? Region,
         string? Model,
         ServerVoiceFile? Voice,
-        int InputAudioSamplingRate,
         ServerNoiseReductionFile? InputAudioNoiseReduction,
         ServerEchoCancellationFile? InputAudioEchoCancellation,
         ServerTranscriptionFile? InputAudioTranscription);
@@ -209,6 +474,11 @@ public static partial class WebConfigLoader
     private sealed record ServerEchoCancellationFile(string? Type);
     private sealed record ServerTranscriptionFile(string? Model, string? Language = null);
     private sealed record ServerTurnTakingFile(string? ActiveMode, Dictionary<string, ServerTurnModeConfig>? Modes);
-    private sealed record ServerAvatarFile(string? Character, string? Style, bool Customized, ServerVideoConfig? Video = null);
+    private sealed record ServerAvatarFile(string? Character, string? Style, bool? Preview, ServerAvatarVideoFile? Video = null);
+    private sealed record ServerAvatarVideoFile(
+        ServerVideoResolutionConfig? Resolution,
+        int? Bitrate = null,
+        string? Codec = null,
+        JsonElement? Background = null);
     private sealed record ServerAgentFile(string? AgentName, string? AgentProjectName, IReadOnlyList<string>? SafeQuestions);
 }

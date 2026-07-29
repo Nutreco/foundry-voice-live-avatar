@@ -5,14 +5,16 @@
   "private": true,
   "main": "index.js",
   "scripts": {
-    "test": "npm run typecheck",
+    "test": "npm run typecheck && npm run test:e2e",
     "typecheck": "tsc --noEmit",
-    "build": "esbuild src/main.ts --bundle --format=esm --outfile=../src/VoiceLive.Web/wwwroot/app.js"
+    "build": "esbuild src/main.ts --bundle --format=esm --outfile=../src/VoiceLive.Web/wwwroot/app.js",
+    "test:e2e": "npm run build && playwright test"
   },
   "keywords": [],
   "author": "",
   "type": "commonjs",
   "devDependencies": {
+    "@playwright/test": "^1.62.0",
     "esbuild": "^0.28.1",
     "typescript": "^7.0.2"
   }
