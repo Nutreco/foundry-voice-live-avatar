@@ -142,7 +142,6 @@ public static class SessionOptionsBuilder
                 Background = config.Video.Background is not null
                     ? new VideoBackground
                     {
-                        Color = config.Video.Background.Color,
                         ImageUrl = config.Video.Background.ImageUrl
                     }
                     : null
